@@ -3,70 +3,374 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>絵文字アプリ - 速度調整版</title>
+    <title>絵文字だけ・テトリス</title>
     <style>
         body {
+            background-color: #202028;
+            color: #fff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            text-align: center;
             margin: 0;
-            height: 100vh;
-            background-color: #1a1a1a;
-            overflow: hidden;
-            cursor: default;
+            padding: 20px;
+            overflow: hidden; 
         }
-
-        .trail-emoji {
-            position: fixed;
-            font-size: 2.5rem;
-            user-select: none;
-            pointer-events: none;
-            transform: translate(-50%, -50%) scale(1);
-            
-            /* 【調整】消えるスピードを1.2秒にして、テンポよくフェードアウト */
-            transition: transform 1.2s ease-out, opacity 1.2s ease-out;
-            will-change: transform, opacity;
+        h1 {
+            margin-bottom: 10px;
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #score {
+            font-size: 24px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: #00f0f0;
+        }
+        canvas {
+            border: 4px solid #fff;
+            background-color: #111;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        .button-container {
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #3877FF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 4px #2050b3;
+            transition: all 0.1s ease;
+        }
+        button:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+        button#reset-btn {
+            background-color: #FF0D72;
+            box-shadow: 0 4px #b30950;
+        }
+        button#reset-btn:active {
+            box-shadow: none;
+        }
+        .controls {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #aaa;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
 
-    <script>
-        const emojis = ['✨', '💖', '🌟', '🎨', '🚀', '🔮', '🍿', '🧸'];
+    <h1>TETRIS</h1>
+    <div id="game-container">
+        <div id="score">SCORE: 0</div>
+        <canvas id="tetris" width="336" height="576"></canvas>
         
-        let lastCreatedTime = 0;
-        /* 【調整】出る間隔を 100ms → 50ms に。
-           マウスを動かしたときに、より滑らかに繋がって出ます */
-        const creationInterval = 50; 
+        <div class="button-container">
+            <button id="pause-btn" onclick="togglePause()">一時停止</button>
+            <button id="reset-btn" onclick="resetGame()">リセット</button>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <p>【操作方法】<br>
+        ← / → : 左右移動 |  ↓ : 高速落下 | ↑ : ブロック回転<br>
+        <strong>Pキー</strong> : 一時停止 / 再開</p>
+    </div>
 
-        document.addEventListener('mousemove', (e) => {
-            const currentTime = Date.now();
+    <script>
+        const canvas = document.getElementById('tetris');
+        const context = canvas.getContext('2d');
 
-            if (currentTime - lastCreatedTime < creationInterval) {
+        const BLOCK_SIZE = 24;
+        context.scale(BLOCK_SIZE, BLOCK_SIZE);
+
+        let score = 0;
+        let gameOver = false;
+        let isPaused = false; 
+
+        const ARENA_WIDTH = 14;
+        const ARENA_HEIGHT = 24;
+        const arena = createMatrix(ARENA_WIDTH, ARENA_HEIGHT);
+
+        // ブロックごとの絵文字設定（内部的な数値判定用はそのまま残しています）
+        const EMOJIS = [
+            null,
+            '😈', // 1: ピンク (T型)
+            '💎', // 2: 水色 (I型)
+            '🐍', // 3: 緑 (S型)
+            '👾', // 4: 紫 (Z型)
+            '🎃', // 5: オレンジ (L型)
+            '🐥', // 6: 黄色 (O型)
+            '🐳'  // 7: 青 (J型)
+        ];
+
+        function createPiece(type) {
+            if (type === 'T') return [[0, 0, 0], [1, 1, 1], [0, 1, 0]];
+            if (type === 'I') return [[0, 2, 0, 0], [0, 2, 0, 0], [0, 2, 0, 0], [0, 2, 0, 0]];
+            if (type === 'S') return [[0, 3, 3], [3, 3, 0], [0, 0, 0]];
+            if (type === 'Z') return [[4, 4, 0], [0, 4, 4], [0, 0, 0]];
+            if (type === 'L') return [[0, 5, 0], [0, 5, 0], [0, 5, 5]];
+            if (type === 'O') return [[6, 6], [6, 6]];
+            if (type === 'J') return [[0, 7, 0], [0, 7, 0], [7, 7, 0]];
+        }
+
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) matrix.push(new Array(w).fill(0));
+            return matrix;
+        }
+
+        const player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+        };
+
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 &&
+                       (arena[y + o.y] &&
+                        arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        arena[y + player.pos.y][x + player.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        function drawGrid() {
+            context.strokeStyle = 'rgba(13, 194, 255, 0.12)'; // 少しだけ薄く調整
+            context.lineWidth = 0.03;
+
+            for (let x = 0; x <= ARENA_WIDTH; x++) {
+                context.beginPath();
+                context.moveTo(x, 0);
+                context.lineTo(x, ARENA_HEIGHT);
+                context.stroke();
+            }
+
+            for (let y = 0; y <= ARENA_HEIGHT; y++) {
+                context.beginPath();
+                context.moveTo(0, y);
+                context.lineTo(ARENA_WIDTH, y);
+                context.stroke();
+            }
+        }
+
+        // 【変更】枠線と四角い塗りつぶしを消去し、絵文字のみを描画
+        function drawMatrix(matrix, offset) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        // 四角形（fillRectやstrokeRect）のコードをすべて削除しました
+
+                        // 絵文字のみを中央に描画
+                        if (EMOJIS[value]) {
+                            context.font = '0.85px "Helvetica Neue", Arial'; // 絵文字が主役なので少し大きく
+                            context.textAlign = 'center';
+                            context.textBaseline = 'middle';
+                            context.fillText(EMOJIS[value], x + offset.x + 0.5, y + offset.y + 0.5);
+                        }
+                    }
+                });
+            });
+        }
+
+        function draw() {
+            context.fillStyle = '#111';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid();
+
+            drawMatrix(arena, {x: 0, y: 0});
+            drawMatrix(player.matrix, player.pos);
+
+            if (isPaused) {
+                context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                
+                context.font = '2px "Helvetica Neue"';
+                context.fillStyle = '#fff';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText('PAUSE', ARENA_WIDTH / 2, ARENA_HEIGHT / 2);
+            }
+        }
+
+        function arenaSweep() {
+            let rowCount = 1;
+            outer: for (let y = arena.length - 1; y > 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) continue outer;
+                }
+                const row = arena.splice(y, 1)[0].fill(0);
+                arena.unshift(row);
+                ++y;
+
+                score += rowCount * 10;
+                rowCount *= 2;
+            }
+            updateScore();
+        }
+
+        let dropCounter = 0;
+        let dropInterval = 1200; 
+        let lastTime = 0;
+
+        function playerDrop() {
+            if (gameOver || isPaused) return;
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                playerReset();
+                arenaSweep();
+            }
+            dropCounter = 0;
+        }
+
+        function playerMove(dir) {
+            if (gameOver || isPaused) return;
+            player.pos.x += dir;
+            if (collide(arena, player)) {
+                player.pos.x -= dir;
+            }
+        }
+
+        function playerReset() {
+            const pieces = 'ILJSZO';
+            const randomType = pieces[Math.floor(Math.random() * pieces.length)];
+            player.matrix = createPiece(randomType);
+            player.pos.y = 0;
+            player.pos.x = Math.floor(arena[0].length / 2) - Math.floor(player.matrix[0].length / 2);
+
+            if (collide(arena, player)) {
+                gameOver = true;
+                setTimeout(() => {
+                    alert('ゲームオーバー！ SCORE: ' + score);
+                    resetGame();
+                }, 10);
+            }
+        }
+
+        function playerRotate() {
+            if (gameOver || isPaused) return;
+            const pos = player.pos.x;
+            let offset = 1;
+            rotate(player.matrix);
+            while (collide(arena, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -1);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        function rotate(matrix) {
+            for (let y = 0; y < matrix.length; ++y) {
+                for (let x = 0; x < y; ++x) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            matrix.forEach(row => row.reverse());
+        }
+
+        function updateScore() {
+            document.getElementById('score').innerText = 'SCORE: ' + score;
+        }
+
+        function togglePause() {
+            if (gameOver) return;
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pause-btn');
+            if (isPaused) {
+                pauseBtn.innerText = '再開';
+                pauseBtn.style.backgroundColor = '#ffcc00';
+                pauseBtn.style.boxShadow = '0 4px #b38f00';
+            } else {
+                pauseBtn.innerText = '一時停止';
+                pauseBtn.style.backgroundColor = '#3877FF';
+                pauseBtn.style.boxShadow = '0 4px #2050b3';
+            }
+        }
+
+        function resetGame() {
+            arena.forEach(row => row.fill(0));
+            score = 0;
+            gameOver = false;
+            isPaused = false; 
+            
+            const pauseBtn = document.getElementById('pause-btn');
+            pauseBtn.innerText = '一時停止';
+            pauseBtn.style.backgroundColor = '#3877FF';
+            pauseBtn.style.boxShadow = '0 4px #2050b3';
+
+            updateScore();
+            playerReset();
+        }
+
+        function update(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            if (!isPaused) {
+                dropCounter += deltaTime;
+                if (dropCounter > dropInterval) {
+                    playerDrop();
+                }
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.keyCode === 80) {
+                togglePause();
                 return;
             }
-            
-            lastCreatedTime = currentTime;
 
-            const emojiEl = document.createElement('div');
-            emojiEl.classList.add('trail-emoji');
-            
-            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-            emojiEl.textContent = randomEmoji;
+            if ([37, 38, 39, 40].includes(event.keyCode)) {
+                event.preventDefault(); 
+            }
 
-            emojiEl.style.left = `${e.clientX}px`;
-            emojiEl.style.top = `${e.clientY}px`;
-
-            document.body.appendChild(emojiEl);
-
-            setTimeout(() => {
-                emojiEl.style.transform = 'translate(-50%, -50%) scale(0.2)'; 
-                emojiEl.style.opacity = '0';
-            }, 20);
-
-            /* 【調整】消える速度（1.2秒＝1200ミリ秒）に合わせてお片付け */
-            setTimeout(() => {
-                emojiEl.remove();
-            }, 1200);
+            if (!isPaused) {
+                if (event.keyCode === 37) playerMove(-1);
+                if (event.keyCode === 39) playerMove(1);
+                if (event.keyCode === 40) playerDrop();
+                if (event.keyCode === 38) playerRotate();
+            }
         });
-    </script>
 
+        playerReset();
+        updateScore();
+        update();
+    </script>
 </body>
 </html>
