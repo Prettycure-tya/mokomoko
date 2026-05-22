@@ -3,374 +3,1201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>絵文字だけ・テトリス</title>
+    <title>マイ・マップブック (Map Link Saver)</title>
+    <!-- LeafletのCSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body {
-            background-color: #202028;
-            color: #fff;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            text-align: center;
+        * {
+            box-sizing: border-box;
             margin: 0;
-            padding: 20px;
-            overflow: hidden; 
+            padding: 0;
         }
-        h1 {
-            margin-bottom: 10px;
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: #f5f5f5;
         }
-        #game-container {
+        /* サイドバーのスタイル */
+        #sidebar {
+            width: 360px;
+            background-color: white;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            z-index: 1000;
+            height: 100%;
         }
-        #score {
-            font-size: 24px;
-            margin-bottom: 15px;
-            font-weight: bold;
-            color: #00f0f0;
-        }
-        canvas {
-            border: 4px solid #fff;
-            background-color: #111;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
-        }
-        .button-container {
-            margin-top: 15px;
+        /* タブヘッダー */
+        .tab-header {
             display: flex;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+            border-radius: 0;
+        }
+        .tab-btn:hover {
+            color: #007bff;
+            background-color: #f1f3f5;
+            opacity: 1;
+        }
+        .tab-btn.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            background-color: white;
+        }
+        /* タブコンテンツエリア */
+        .tab-content-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
             gap: 15px;
         }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .tab-content.active {
+            display: flex;
+        }
+        /* 編集モード時のサイドバーのスタイル変化 */
+        #sidebar.edit-mode {
+            border-left: 5px solid #28a745;
+        }
+        h2 {
+            font-size: 1.2rem;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .instruction {
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.4;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-size: 0.85rem;
             font-weight: bold;
-            background-color: #3877FF;
+            color: #555;
+        }
+        input, select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            width: 100%;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+            border-color: #007bff;
+        }
+        /* ファイル入力スタイルのカスタマイズ */
+        .file-upload-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .file-upload-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background-color: #f8f9fa;
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: #555;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .file-upload-btn:hover {
+            border-color: #007bff;
+            background-color: #e8f0fe;
+            color: #007bff;
+        }
+        #image-input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        /* アップロード画像のプレビュー枠 */
+        #image-preview-container {
+            display: none;
+            position: relative;
+            margin-top: 5px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #eee;
+        }
+        #image-preview {
+            width: 100%;
+            height: 140px;
+            object-fit: cover;
+            display: block;
+        }
+        #remove-image-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: rgba(0, 0, 0, 0.6);
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            box-shadow: 0 4px #2050b3;
-            transition: all 0.1s ease;
+            font-size: 0.8rem;
+            font-weight: bold;
+            transition: background-color 0.2s;
         }
-        button:active {
-            transform: translateY(4px);
-            box-shadow: none;
+        #remove-image-btn:hover {
+            background-color: rgba(220, 53, 69, 0.9);
         }
-        button#reset-btn {
-            background-color: #FF0D72;
-            box-shadow: 0 4px #b30950;
+        button {
+            padding: 10px;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
         }
-        button#reset-btn:active {
-            box-shadow: none;
+        button:hover {
+            opacity: 0.9;
         }
-        .controls {
-            margin-top: 15px;
-            font-size: 14px;
-            color: #aaa;
-            line-height: 1.5;
+        #save-btn {
+            background-color: #007bff;
+        }
+        #save-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        /* 編集用コントロール */
+        #edit-controls {
+            display: none;
+            gap: 10px;
+        }
+        #update-btn {
+            background-color: #28a745;
+            flex: 1;
+        }
+        #cancel-btn {
+            background-color: #6c757d;
+            flex: 1;
+        }
+        /* 検索一覧用のスタイル */
+        .search-stats {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .spot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 5px;
+            flex: 1;
+        }
+        .spot-item {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s;
+        }
+        .spot-item:hover {
+            background-color: #e8f0fe;
+            border-color: #b8daff;
+            transform: translateY(-1px);
+        }
+        .spot-item-img {
+            width: 60px;
+            height: 60px;
+            border-radius: 6px;
+            object-fit: cover;
+            background-color: #eee;
+        }
+        .spot-item-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0; /* はみ出し防止 */
+        }
+        .spot-item-title {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .spot-item-desc {
+            font-size: 0.75rem;
+            color: #777;
+            margin-top: 3px;
+        }
+        .spot-item-color-bar {
+            width: 4px;
+            border-radius: 2px;
+        }
+        /* 地図のスタイル */
+        #map {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+        /* LeafletのカスタムSVGピン用スタイル（デフォルトの四角枠を消す） */
+        .custom-marker-icon {
+            background: none !important;
+            border: none !important;
+        }
+        /* ホバープレビュー（ツールチップ）のカスタムスタイル */
+        .custom-tooltip {
+            background: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+            padding: 0 !important;
+            overflow: hidden;
+            width: 160px;
+        }
+        /* ツールチップの小さな矢印を消す */
+        .custom-tooltip::before {
+            display: none !important;
+        }
+        .tooltip-card {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        .tooltip-img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            background-color: #f0f0f0;
+        }
+        .tooltip-title {
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            white-space: normal;
+            word-break: break-all;
+            line-height: 1.3;
+        }
+        /* ポップアップ内のスタイル */
+        .popup-content {
+            min-width: 200px;
+            max-width: 250px;
+        }
+        .popup-img-wrapper {
+            width: 100%;
+            height: 130px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            background-color: #eee;
+            border: 1px solid #eee;
+        }
+        .popup-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .popup-content h3 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .popup-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .popup-content a {
+            color: #007bff;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 0.85rem;
+        }
+        .popup-content a:hover {
+            text-decoration: underline;
+        }
+        /* ボタン配置用グループ */
+        .btn-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 5px;
+            border-top: 1px solid #eee;
+            padding-top: 5px;
+        }
+        /* 編集・削除リンク風ボタン */
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        .edit-btn {
+            color: #28a745;
+        }
+        .edit-btn:hover {
+            background-color: #e2f0d9;
+        }
+        .delete-btn {
+            color: #dc3545;
+        }
+        .delete-btn:hover {
+            background-color: #f8d7da;
+        }
+        /* 通知トーストのスタイル */
+        #notification-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 0.9rem;
+            z-index: 2000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
     </style>
 </head>
 <body>
 
-    <h1>TETRIS</h1>
-    <div id="game-container">
-        <div id="score">SCORE: 0</div>
-        <canvas id="tetris" width="336" height="576"></canvas>
-        
-        <div class="button-container">
-            <button id="pause-btn" onclick="togglePause()">一時停止</button>
-            <button id="reset-btn" onclick="resetGame()">リセット</button>
+    <!-- サイドバー -->
+    <div id="sidebar">
+        <!-- タブ切り替えボタン -->
+        <div class="tab-header">
+            <button class="tab-btn active" onclick="switchTab('register')">登録する</button>
+            <button class="tab-btn" onclick="switchTab('search')">探す・一覧</button>
+        </div>
+
+        <div class="tab-content-wrapper">
+            <!-- タブ1: 登録フォーム -->
+            <div id="tab-register" class="tab-content active">
+                <h2 id="sidebar-title">スポット登録</h2>
+                <p class="instruction" id="sidebar-desc">地図上の好きな場所を**クリック**してピンの位置を決めてから、下の情報を入力してください。</p>
+                
+                <div class="input-group">
+                    <label>選択された位置</label>
+                    <input type="text" id="coords" placeholder="地図をクリックしてください" readonly />
+                </div>
+                
+                <div class="input-group">
+                    <label for="title">店名・イベント名</label>
+                    <input type="text" id="title" placeholder="例: おしゃれカフェ渋谷" />
+                </div>
+                
+                <div class="input-group">
+                    <label for="url">URLリンク</label>
+                    <input type="url" id="url" placeholder="https://example.com" />
+                </div>
+
+                <div class="input-group">
+                    <label>写真・画像（任意）</label>
+                    <div class="file-upload-wrapper">
+                        <div class="file-upload-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;">
+                                <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                                <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/>
+                            </svg>
+                            画像をアップロード
+                        </div>
+                        <input type="file" id="image-input" accept="image/*" />
+                    </div>
+                    <div id="image-preview-container">
+                        <img id="image-preview" src="" alt="プレビュー" />
+                        <button type="button" id="remove-image-btn" title="画像を消去">×</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="color">ピンの色 / カテゴリ</label>
+                    <select id="color">
+                        <option value="#e91e63" style="color: #e91e63; font-weight: bold;">カフェ・グルメ (ピンク)</option>
+                        <option value="#3f51b5" style="color: #3f51b5; font-weight: bold;">イベント・展示会 (ブルー)</option>
+                        <option value="#4caf50" style="color: #4caf50; font-weight: bold;">ショッピング (グリーン)</option>
+                        <option value="#ff9800" style="color: #ff9800; font-weight: bold;">観光・お出かけ (オレンジ)</option>
+                        <option value="#9c27b0" style="color: #9c27b0; font-weight: bold;">その他 (パープル)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>開催期間</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+                        <label style="font-weight: normal; font-size: 0.85rem; display: flex; align-items: center; gap: 3px; cursor: pointer;">
+                            <input type="radio" name="period-type" value="none" checked style="width: auto;"> 期間なし
+                        </label>
+                        <label style="font-weight: normal; font-size: 0.85rem; display: flex; align-items: center; gap: 3px; cursor: pointer;">
+                            <input type="radio" name="period-type" value="undecided" style="width: auto;"> 期間未定
+                        </label>
+                        <label style="font-weight: normal; font-size: 0.85rem; display: flex; align-items: center; gap: 3px; cursor: pointer;">
+                            <input type="radio" name="period-type" value="specific" style="width: auto;"> 期間指定
+                        </label>
+                    </div>
+                    <div id="period-date-inputs" style="display: none; flex-direction: column; gap: 5px;">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <input type="date" id="start-date" style="flex: 1;" />
+                            <span style="font-size: 0.85rem; color: #666;">～</span>
+                            <input type="date" id="end-date" style="flex: 1;" />
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 新規登録用ボタン -->
+                <button id="save-btn" disabled>この場所に保存する</button>
+
+                <!-- 編集モード用ボタン（初期状態では非表示） -->
+                <div id="edit-controls">
+                    <button id="update-btn">更新する</button>
+                    <button id="cancel-btn">キャンセル</button>
+                </div>
+            </div>
+
+            <!-- タブ2: 検索・一覧 -->
+            <div id="tab-search" class="tab-content">
+                <h2>スポット検索</h2>
+                
+                <!-- キーワード部分一致検索 -->
+                <div class="input-group">
+                    <label for="search-keyword">店名・イベント名で探す</label>
+                    <input type="text" id="search-keyword" placeholder="例: カフェ 渋谷" />
+                </div>
+
+                <!-- カテゴリ・色による絞り込み -->
+                <div class="input-group">
+                    <label for="search-color">カテゴリで絞り込み</label>
+                    <select id="search-color">
+                        <option value="all">すべて表示</option>
+                        <option value="#e91e63" style="color: #e91e63; font-weight: bold;">カフェ・グルメ (ピンク)</option>
+                        <option value="#3f51b5" style="color: #3f51b5; font-weight: bold;">イベント・展示会 (ブルー)</option>
+                        <option value="#4caf50" style="color: #4caf50; font-weight: bold;">ショッピング (グリーン)</option>
+                        <option value="#ff9800" style="color: #ff9800; font-weight: bold;">観光・お出かけ (オレンジ)</option>
+                        <option value="#9c27b0" style="color: #9c27b0; font-weight: bold;">その他 (パープル)</option>
+                    </select>
+                </div>
+
+                <!-- 該当件数表示 -->
+                <div class="search-stats" id="search-stats">
+                    登録件数: 0 件
+                </div>
+
+                <!-- フィルタリングされたスポットのスクロールリスト -->
+                <div class="spot-list" id="spot-list-container">
+                    <!-- JavaScriptで動的にスポットが追加されます -->
+                </div>
+            </div>
         </div>
     </div>
-    
-    <div class="controls">
-        <p>【操作方法】<br>
-        ← / → : 左右移動 |  ↓ : 高速落下 | ↑ : ブロック回転<br>
-        <strong>Pキー</strong> : 一時停止 / 再開</p>
-    </div>
 
+    <!-- 地図を表示するエリア -->
+    <div id="map"></div>
+
+    <!-- LeafletのJavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const canvas = document.getElementById('tetris');
-        const context = canvas.getContext('2d');
+        // --- 1. 初期設定と変数宣言 ---
+        const initialLocation = [35.6812, 139.7671]; // 初期表示位置（東京駅）
+        const map = L.map('map').setView(initialLocation, 13);
 
-        const BLOCK_SIZE = 24;
-        context.scale(BLOCK_SIZE, BLOCK_SIZE);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-        let score = 0;
-        let gameOver = false;
-        let isPaused = false; 
+        let selectedLatLng = null; // クリックされた緯度経度
+        let tempMarker = null;     // 新規・変更用の一時的な半透明ピン
+        let savedSpots = [];       // 保存データ
+        let markerObjects = {};    // 地図上のマーカー実体をIDで管理
+        let editingSpotId = null;  // 現在編集中のスポットID（通常時はnull）
+        let uploadedImageData = ""; // リサイズ＆エンコードした画像Base64文字列の一時保存用
 
-        const ARENA_WIDTH = 14;
-        const ARENA_HEIGHT = 24;
-        const arena = createMatrix(ARENA_WIDTH, ARENA_HEIGHT);
+        // DOM要素の取得
+        const sidebar = document.getElementById('sidebar');
+        const sidebarTitle = document.getElementById('sidebar-title');
+        const sidebarDesc = document.getElementById('sidebar-desc');
+        const coordsInput = document.getElementById('coords');
+        const titleInput = document.getElementById('title');
+        const urlInput = document.getElementById('url');
+        const colorSelect = document.getElementById('color');
+        const saveBtn = document.getElementById('save-btn');
+        const editControls = document.getElementById('edit-controls');
+        const updateBtn = document.getElementById('update-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
 
-        // ブロックごとの絵文字設定（内部的な数値判定用はそのまま残しています）
-        const EMOJIS = [
-            null,
-            '😈', // 1: ピンク (T型)
-            '💎', // 2: 水色 (I型)
-            '🐍', // 3: 緑 (S型)
-            '👾', // 4: 紫 (Z型)
-            '🎃', // 5: オレンジ (L型)
-            '🐥', // 6: 黄色 (O型)
-            '🐳'  // 7: 青 (J型)
-        ];
+        const imageInput = document.getElementById('image-input');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const removeImageBtn = document.getElementById('remove-image-btn');
 
-        function createPiece(type) {
-            if (type === 'T') return [[0, 0, 0], [1, 1, 1], [0, 1, 0]];
-            if (type === 'I') return [[0, 2, 0, 0], [0, 2, 0, 0], [0, 2, 0, 0], [0, 2, 0, 0]];
-            if (type === 'S') return [[0, 3, 3], [3, 3, 0], [0, 0, 0]];
-            if (type === 'Z') return [[4, 4, 0], [0, 4, 4], [0, 0, 0]];
-            if (type === 'L') return [[0, 5, 0], [0, 5, 0], [0, 5, 5]];
-            if (type === 'O') return [[6, 6], [6, 6]];
-            if (type === 'J') return [[0, 7, 0], [0, 7, 0], [7, 7, 0]];
-        }
+        // 検索用のDOM要素取得
+        const searchKeywordInput = document.getElementById('search-keyword');
+        const searchColorSelect = document.getElementById('search-color');
+        const searchStats = document.getElementById('search-stats');
+        const spotListContainer = document.getElementById('spot-list-container');
 
-        function createMatrix(w, h) {
-            const matrix = [];
-            while (h--) matrix.push(new Array(w).fill(0));
-            return matrix;
-        }
+        // 過去の保存データの読み込み
+        loadSpots();
 
-        const player = {
-            pos: {x: 0, y: 0},
-            matrix: null,
+        // 期間指定の切り替えイベント
+        document.querySelectorAll('input[name="period-type"]').forEach(radio => {
+            radio.addEventListener('change', function(e) {
+                const dateInputs = document.getElementById('period-date-inputs');
+                if (e.target.value === 'specific') {
+                    dateInputs.style.display = 'flex';
+                } else {
+                    dateInputs.style.display = 'none';
+                    document.getElementById('start-date').value = '';
+                    document.getElementById('end-date').value = '';
+                }
+            });
+        });
+
+        // タブ切り替え処理
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            if (tabName === 'register') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('tab-register').classList.add('active');
+            } else if (tabName === 'search') {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('tab-search').classList.add('active');
+                // 検索タブを開いた瞬間に最新データでリストを更新＆フィルタ
+                filterSpots();
+            }
         };
 
-        function collide(arena, player) {
-            const [m, o] = [player.matrix, player.pos];
-            for (let y = 0; y < m.length; ++y) {
-                for (let x = 0; x < m[y].length; ++x) {
-                    if (m[y][x] !== 0 &&
-                       (arena[y + o.y] &&
-                        arena[y + o.y][x + o.x]) !== 0) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
+        // --- STREAMING_CHUNK: Handling image processing... ---
+        // 画像アップロード時のリサイズ・圧縮処理
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        function merge(arena, player) {
-            player.matrix.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) {
-                        arena[y + player.pos.y][x + player.pos.x] = value;
-                    }
-                });
-            });
-        }
-
-        function drawGrid() {
-            context.strokeStyle = 'rgba(13, 194, 255, 0.12)'; // 少しだけ薄く調整
-            context.lineWidth = 0.03;
-
-            for (let x = 0; x <= ARENA_WIDTH; x++) {
-                context.beginPath();
-                context.moveTo(x, 0);
-                context.lineTo(x, ARENA_HEIGHT);
-                context.stroke();
-            }
-
-            for (let y = 0; y <= ARENA_HEIGHT; y++) {
-                context.beginPath();
-                context.moveTo(0, y);
-                context.lineTo(ARENA_WIDTH, y);
-                context.stroke();
-            }
-        }
-
-        // 【変更】枠線と四角い塗りつぶしを消去し、絵文字のみを描画
-        function drawMatrix(matrix, offset) {
-            matrix.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value !== 0) {
-                        // 四角形（fillRectやstrokeRect）のコードをすべて削除しました
-
-                        // 絵文字のみを中央に描画
-                        if (EMOJIS[value]) {
-                            context.font = '0.85px "Helvetica Neue", Arial'; // 絵文字が主役なので少し大きく
-                            context.textAlign = 'center';
-                            context.textBaseline = 'middle';
-                            context.fillText(EMOJIS[value], x + offset.x + 0.5, y + offset.y + 0.5);
-                        }
-                    }
-                });
-            });
-        }
-
-        function draw() {
-            context.fillStyle = '#111';
-            context.fillRect(0, 0, canvas.width, canvas.height);
-
-            drawGrid();
-
-            drawMatrix(arena, {x: 0, y: 0});
-            drawMatrix(player.matrix, player.pos);
-
-            if (isPaused) {
-                context.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                context.fillRect(0, 0, canvas.width, canvas.height);
-                
-                context.font = '2px "Helvetica Neue"';
-                context.fillStyle = '#fff';
-                context.textAlign = 'center';
-                context.textBaseline = 'middle';
-                context.fillText('PAUSE', ARENA_WIDTH / 2, ARENA_HEIGHT / 2);
-            }
-        }
-
-        function arenaSweep() {
-            let rowCount = 1;
-            outer: for (let y = arena.length - 1; y > 0; --y) {
-                for (let x = 0; x < arena[y].length; ++x) {
-                    if (arena[y][x] === 0) continue outer;
-                }
-                const row = arena.splice(y, 1)[0].fill(0);
-                arena.unshift(row);
-                ++y;
-
-                score += rowCount * 10;
-                rowCount *= 2;
-            }
-            updateScore();
-        }
-
-        let dropCounter = 0;
-        let dropInterval = 1200; 
-        let lastTime = 0;
-
-        function playerDrop() {
-            if (gameOver || isPaused) return;
-            player.pos.y++;
-            if (collide(arena, player)) {
-                player.pos.y--;
-                merge(arena, player);
-                playerReset();
-                arenaSweep();
-            }
-            dropCounter = 0;
-        }
-
-        function playerMove(dir) {
-            if (gameOver || isPaused) return;
-            player.pos.x += dir;
-            if (collide(arena, player)) {
-                player.pos.x -= dir;
-            }
-        }
-
-        function playerReset() {
-            const pieces = 'ILJSZO';
-            const randomType = pieces[Math.floor(Math.random() * pieces.length)];
-            player.matrix = createPiece(randomType);
-            player.pos.y = 0;
-            player.pos.x = Math.floor(arena[0].length / 2) - Math.floor(player.matrix[0].length / 2);
-
-            if (collide(arena, player)) {
-                gameOver = true;
-                setTimeout(() => {
-                    alert('ゲームオーバー！ SCORE: ' + score);
-                    resetGame();
-                }, 10);
-            }
-        }
-
-        function playerRotate() {
-            if (gameOver || isPaused) return;
-            const pos = player.pos.x;
-            let offset = 1;
-            rotate(player.matrix);
-            while (collide(arena, player)) {
-                player.pos.x += offset;
-                offset = -(offset + (offset > 0 ? 1 : -1));
-                if (offset > player.matrix[0].length) {
-                    rotate(player.matrix, -1);
-                    player.pos.x = pos;
-                    return;
-                }
-            }
-        }
-
-        function rotate(matrix) {
-            for (let y = 0; y < matrix.length; ++y) {
-                for (let x = 0; x < y; ++x) {
-                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
-                }
-            }
-            matrix.forEach(row => row.reverse());
-        }
-
-        function updateScore() {
-            document.getElementById('score').innerText = 'SCORE: ' + score;
-        }
-
-        function togglePause() {
-            if (gameOver) return;
-            isPaused = !isPaused;
-            const pauseBtn = document.getElementById('pause-btn');
-            if (isPaused) {
-                pauseBtn.innerText = '再開';
-                pauseBtn.style.backgroundColor = '#ffcc00';
-                pauseBtn.style.boxShadow = '0 4px #b38f00';
-            } else {
-                pauseBtn.innerText = '一時停止';
-                pauseBtn.style.backgroundColor = '#3877FF';
-                pauseBtn.style.boxShadow = '0 4px #2050b3';
-            }
-        }
-
-        function resetGame() {
-            arena.forEach(row => row.fill(0));
-            score = 0;
-            gameOver = false;
-            isPaused = false; 
-            
-            const pauseBtn = document.getElementById('pause-btn');
-            pauseBtn.innerText = '一時停止';
-            pauseBtn.style.backgroundColor = '#3877FF';
-            pauseBtn.style.boxShadow = '0 4px #2050b3';
-
-            updateScore();
-            playerReset();
-        }
-
-        function update(time = 0) {
-            const deltaTime = time - lastTime;
-            lastTime = time;
-
-            if (!isPaused) {
-                dropCounter += deltaTime;
-                if (dropCounter > dropInterval) {
-                    playerDrop();
-                }
-            }
-
-            draw();
-            requestAnimationFrame(update);
-        }
-
-        document.addEventListener('keydown', event => {
-            if (event.keyCode === 80) {
-                togglePause();
+            // 画像ファイルチェック
+            if (!file.type.startsWith('image/')) {
+                alert('画像ファイルを選択してください。');
                 return;
             }
 
-            if ([37, 38, 39, 40].includes(event.keyCode)) {
-                event.preventDefault(); 
-            }
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // キャンバスを使用してリサイズ（最大横/縦幅を400pxに設定し、データ容量を小さくする）
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 400;
+                    const MAX_HEIGHT = 400;
+                    let width = img.width;
+                    let height = img.height;
 
-            if (!isPaused) {
-                if (event.keyCode === 37) playerMove(-1);
-                if (event.keyCode === 39) playerMove(1);
-                if (event.keyCode === 40) playerDrop();
-                if (event.keyCode === 38) playerRotate();
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // JPEG形式で圧縮（画質0.75で十分綺麗かつ非常に軽量になる）
+                    uploadedImageData = canvas.toDataURL('image/jpeg', 0.75);
+                    
+                    // プレビュー表示
+                    imagePreview.src = uploadedImageData;
+                    imagePreviewContainer.style.display = 'block';
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 画像の取り消し処理
+        removeImageBtn.addEventListener('click', function() {
+            uploadedImageData = "";
+            imageInput.value = "";
+            imagePreview.src = "";
+            imagePreviewContainer.style.display = 'none';
+        });
+
+        // --- 2. カラーピン用のSVG作成関数 ---
+        // 外部画像をロードせず、動的に色を変えられるSVGピン
+        function getMarkerIcon(color) {
+            const svgTemplate = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36">
+                    <path fill="${color}" stroke="#ffffff" stroke-width="1.5" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+            `;
+            return L.divIcon({
+                html: svgTemplate,
+                className: 'custom-marker-icon',
+                iconSize: [36, 36],
+                iconAnchor: [18, 36], // ピンの先端を座標に合わせる
+                popupAnchor: [0, -36]  // 吹き出しの位置調整
+            });
+        }
+
+        // --- 3. イベントリスナー ---
+
+        // 地図をクリックした時の処理（新規位置選択 または 編集時の位置変更）
+        map.on('click', function(e) {
+            selectedLatLng = e.latlng;
+            coordsInput.value = `${selectedLatLng.lat.toFixed(5)}, ${selectedLatLng.lng.toFixed(5)}`;
+            
+            // 一時マーカーを置いて位置をわかりやすく
+            if (tempMarker) {
+                tempMarker.setLatLng(selectedLatLng);
+            } else {
+                tempMarker = L.marker(selectedLatLng, { opacity: 0.6 }).addTo(map);
+            }
+            
+            if (!editingSpotId) {
+                saveBtn.disabled = false;
             }
         });
 
-        playerReset();
-        updateScore();
-        update();
+        // 新規保存ボタン
+        saveBtn.addEventListener('click', function() {
+            const title = titleInput.value.trim();
+            const url = urlInput.value.trim();
+            const color = colorSelect.value;
+
+            const periodType = document.querySelector('input[name="period-type"]:checked').value;
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            if (!title) {
+                alert('店名・イベント名を入力してください！');
+                return;
+            }
+
+            if (periodType === 'specific' && !endDate) {
+                alert('期間指定の場合は、終了日を入力してください。');
+                return;
+            }
+
+            const newSpot = {
+                id: Date.now(),
+                lat: selectedLatLng.lat,
+                lng: selectedLatLng.lng,
+                title: title,
+                url: url,
+                color: color,
+                image: uploadedImageData, // 画像データ
+                periodType: periodType,
+                startDate: periodType === 'specific' ? startDate : '',
+                endDate: periodType === 'specific' ? endDate : ''
+            };
+
+            savedSpots.push(newSpot);
+            saveToLocalStorage();
+            createPermanentMarker(newSpot);
+            resetForm();
+
+            // 登録したら一覧リストも再計算する
+            filterSpots();
+        });
+
+        // 編集の更新ボタン
+        updateBtn.addEventListener('click', function() {
+            const title = titleInput.value.trim();
+            const url = urlInput.value.trim();
+            const color = colorSelect.value;
+
+            const periodType = document.querySelector('input[name="period-type"]:checked').value;
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            if (!title) {
+                alert('店名・イベント名を入力してください！');
+                return;
+            }
+
+            if (periodType === 'specific' && !endDate) {
+                alert('期間指定の場合は、終了日を入力してください。');
+                return;
+            }
+
+            // 保存配列内のデータを書き換え
+            const spotIndex = savedSpots.findIndex(s => s.id === editingSpotId);
+            if (spotIndex !== -1) {
+                savedSpots[spotIndex].title = title;
+                savedSpots[spotIndex].url = url;
+                savedSpots[spotIndex].color = color;
+                savedSpots[spotIndex].image = uploadedImageData; // 更新された画像
+                savedSpots[spotIndex].periodType = periodType;
+                savedSpots[spotIndex].startDate = periodType === 'specific' ? startDate : '';
+                savedSpots[spotIndex].endDate = periodType === 'specific' ? endDate : '';
+                
+                // 地図クリックで新しい位置が選ばれていれば反映
+                if (selectedLatLng) {
+                    savedSpots[spotIndex].lat = selectedLatLng.lat;
+                    savedSpots[spotIndex].lng = selectedLatLng.lng;
+                }
+
+                saveToLocalStorage();
+                // マーカー表示の再更新
+                createPermanentMarker(savedSpots[spotIndex]);
+            }
+
+            exitEditMode();
+            filterSpots(); // 編集を反映
+        });
+
+        // 編集キャンセルボタン
+        cancelBtn.addEventListener('click', exitEditMode);
+
+        // --- STREAMING_CHUNK: Setting up search event listeners... ---
+        // 検索インプット / カテゴリ選択時のリアルタイムフィルターイベント
+        searchKeywordInput.addEventListener('input', filterSpots);
+        searchColorSelect.addEventListener('change', filterSpots);
+
+        // 本格マーカーの作成（色・ポップアップの中身を構成、さらにホバー用のツールチップをバインド）
+        function createPermanentMarker(spot) {
+            // すでに同一IDのマーカーが存在していれば一度削除（編集での更新対応）
+            if (markerObjects[spot.id]) {
+                map.removeLayer(markerObjects[spot.id]);
+            }
+
+            // 選択された色でSVGアイコンを生成
+            const icon = getMarkerIcon(spot.color || '#e91e63');
+            const marker = L.marker([spot.lat, spot.lng], { icon: icon }).addTo(map);
+            
+            markerObjects[spot.id] = marker;
+
+            // 1. ホバー時に画像を浮かび上がらせる「ツールチップ」の実装
+            // 画像が登録されていない場合は、店名テキストだけコンパクトにホバー表示する
+            let tooltipHtml = `<div class="tooltip-card">`;
+            if (spot.image) {
+                tooltipHtml += `<img class="tooltip-img" src="${spot.image}" alt="" />`;
+            }
+            tooltipHtml += `<div class="tooltip-title">${escapeHtml(spot.title)}</div>`;
+            tooltipHtml += `</div>`;
+
+            marker.bindTooltip(tooltipHtml, {
+                direction: 'top',
+                className: 'custom-tooltip',
+                offset: [0, -10],
+                opacity: 0.95
+            });
+            
+            // 2. タップ・クリック時に詳細を確認＆操作できる「ポップアップ」の実装
+            let popupHtml = `<div class="popup-content">`;
+            
+            // ポップアップ上部：登録画像があれば大きく見せる
+            if (spot.image) {
+                popupHtml += `<div class="popup-img-wrapper"><img class="popup-img" src="${spot.image}" alt="" /></div>`;
+            }
+            
+            popupHtml += `<h3>${escapeHtml(spot.title)}</h3>`;
+
+            let periodText = '';
+            if (spot.periodType === 'specific') {
+                const startStr = spot.startDate ? spot.startDate.replace(/-/g, '/') : '未指定';
+                const endStr = spot.endDate ? spot.endDate.replace(/-/g, '/') : '未指定';
+                periodText = `期間: ${startStr} ～ ${endStr}`;
+            } else if (spot.periodType === 'undecided') {
+                periodText = '期間: 期間未定';
+            } else {
+                periodText = '期間: なし';
+            }
+            popupHtml += `<p style="font-size: 0.8rem; color: #666; margin: 3px 0 8px 0; font-weight: 500;">${periodText}</p>`;
+            
+            popupHtml += `<div class="popup-links">`;
+            
+            if (spot.url) {
+                popupHtml += `<a href="${escapeHtml(spot.url)}" target="_blank">ページを見る ↗</a>`;
+            } else {
+                popupHtml += `<span style="color:#999; font-size:0.85rem;">リンクなし</span>`;
+            }
+            
+            // ボタンエリア（編集と削除）
+            popupHtml += `<div class="btn-group">`;
+            popupHtml += `<button class="action-btn edit-btn" onclick="startEdit(${spot.id})">編集</button>`;
+            popupHtml += `<button class="action-btn delete-btn" onclick="deleteSpot(${spot.id})">削除</button>`;
+            popupHtml += `</div></div></div>`;
+
+            marker.bindPopup(popupHtml);
+        }
+
+        // --- STREAMING_CHUNK: Filtering spots logic... ---
+        // 検索とカテゴリでのピンおよびリストの絞り込み処理
+        function filterSpots() {
+            const keyword = searchKeywordInput.value.toLowerCase().trim();
+            const selectedColor = searchColorSelect.value;
+            
+            let matchedCount = 0;
+            
+            // リスト表示領域の初期化
+            spotListContainer.innerHTML = '';
+
+            savedSpots.forEach(spot => {
+                const matchesKeyword = spot.title.toLowerCase().includes(keyword);
+                const matchesColor = (selectedColor === 'all' || spot.color === selectedColor);
+                
+                const marker = markerObjects[spot.id];
+                
+                if (matchesKeyword && matchesColor) {
+                    matchedCount++;
+                    
+                    // 条件に合うピンを地図に表示
+                    if (marker && !map.hasLayer(marker)) {
+                        map.addLayer(marker);
+                    }
+                    
+                    // 検索一覧リストにアイテムを追加
+                    appendSpotToList(spot);
+                } else {
+                    // 条件に合わないピンは地図から非表示に
+                    if (marker && map.hasLayer(marker)) {
+                        map.removeLayer(marker);
+                    }
+                }
+            });
+
+            // 件数統計の更新
+            searchStats.innerText = `該当件数: ${matchedCount} 件 (全 ${savedSpots.length} 件中)`;
+
+            if (matchedCount === 0) {
+                spotListContainer.innerHTML = `
+                    <div style="text-align: center; color: #999; font-size: 0.85rem; padding: 20px 0;">
+                        条件に一致するスポットが見つかりません。
+                    </div>
+                `;
+            }
+        }
+
+        // 検索結果一覧に個別スポットアイテムを描画・追加
+        function appendSpotToList(spot) {
+            const item = document.createElement('div');
+            item.className = 'spot-item';
+            
+            // カテゴリ色を視覚的に伝えるカラーバー
+            const colorBar = document.createElement('div');
+            colorBar.className = 'spot-item-color-bar';
+            colorBar.style.backgroundColor = spot.color || '#e91e63';
+            item.appendChild(colorBar);
+
+            // 画像がある場合はミニプレビュー表示、なければプレースホルダー
+            if (spot.image) {
+                const img = document.createElement('img');
+                img.className = 'spot-item-img';
+                img.src = spot.image;
+                item.appendChild(img);
+            } else {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'spot-item-img';
+                placeholder.style.display = 'flex';
+                placeholder.style.alignItems = 'center';
+                placeholder.style.justifyContent = 'center';
+                placeholder.style.backgroundColor = '#eaeaea';
+                placeholder.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#999" viewBox="0 0 16 16">
+                        <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                    </svg>
+                `;
+                item.appendChild(placeholder);
+            }
+
+            // スポット詳細情報
+            const info = document.createElement('div');
+            info.className = 'spot-item-info';
+            
+            const titleEl = document.createElement('div');
+            titleEl.className = 'spot-item-title';
+            titleEl.innerText = spot.title;
+            info.appendChild(titleEl);
+
+            // 期間情報に応じたテキスト
+            let periodText = '期間設定なし';
+            if (spot.periodType === 'specific') {
+                const endStr = spot.endDate ? spot.endDate.replace(/-/g, '/') : '未設定';
+                periodText = `～ ${endStr} まで`;
+            } else if (spot.periodType === 'undecided') {
+                periodText = '期間未定';
+            }
+            
+            const descEl = document.createElement('div');
+            descEl.className = 'spot-item-desc';
+            descEl.innerText = periodText;
+            info.appendChild(descEl);
+
+            item.appendChild(info);
+
+            // リスト項目クリック時、地図をそのピンの位置へズームしてポップアップを開く
+            item.addEventListener('click', function() {
+                const marker = markerObjects[spot.id];
+                if (marker) {
+                    // 少しズームして場所をフォーカス
+                    map.setView([spot.lat, spot.lng], 15);
+                    // ポップアップを開く
+                    marker.openPopup();
+                }
+            });
+
+            spotListContainer.appendChild(item);
+        }
+
+        // 編集モードの開始
+        window.startEdit = function(id) {
+            const spot = savedSpots.find(s => s.id === id);
+            if (!spot) return;
+
+            // 編集フォームがある「登録する」タブに切り替え
+            switchTab('register');
+
+            editingSpotId = id;
+            selectedLatLng = null; // リセット（地図クリックで位置変更可能にするため）
+
+            // フォームに既存データをロード
+            titleInput.value = spot.title;
+            urlInput.value = spot.url;
+            colorSelect.value = spot.color || '#e91e63';
+            coordsInput.value = `${spot.lat.toFixed(5)}, ${spot.lng.toFixed(5)} (変更時は地図を再クリック)`;
+
+            // 画像のロード
+            if (spot.image) {
+                uploadedImageData = spot.image;
+                imagePreview.src = spot.image;
+                imagePreviewContainer.style.display = 'block';
+            } else {
+                uploadedImageData = "";
+                imagePreview.src = "";
+                imagePreviewContainer.style.display = 'none';
+            }
+
+            const pType = spot.periodType || 'none';
+            document.querySelector(`input[name="period-type"][value="${pType}"]`).checked = true;
+            if (pType === 'specific') {
+                document.getElementById('period-date-inputs').style.display = 'flex';
+                document.getElementById('start-date').value = spot.startDate || '';
+                document.getElementById('end-date').value = spot.endDate || '';
+            } else {
+                document.getElementById('period-date-inputs').style.display = 'none';
+                document.getElementById('start-date').value = '';
+                document.getElementById('end-date').value = '';
+            }
+
+            // 仮ピンのクリア
+            if (tempMarker) {
+                map.removeLayer(tempMarker);
+                tempMarker = null;
+            }
+
+            // サイドバーを編集用UIへ切り替え
+            sidebar.classList.add('edit-mode');
+            sidebarTitle.innerText = 'スポット編集';
+            sidebarDesc.innerHTML = '情報を書き換えて「更新する」を押してください。<br>地図をクリックすると、<strong>ピンの位置を変更</strong>することもできます。';
+            saveBtn.style.display = 'none';
+            editControls.style.display = 'flex';
+
+            // 編集対象のポップアップを閉じる
+            markerObjects[id].closePopup();
+        };
+
+        // 編集モードを抜けて通常に戻る
+        function exitEditMode() {
+            editingSpotId = null;
+            sidebar.classList.remove('edit-mode');
+            sidebarTitle.innerText = 'スポット登録';
+            sidebarDesc.innerText = '地図上の好きな場所をクリックしてピンの位置を決めてから、下の情報を入力してください。';
+            saveBtn.style.display = 'block';
+            editControls.style.display = 'none';
+            resetForm();
+        }
+
+        // 入力フォームと一時ピン、一時画像データをリセット
+        function resetForm() {
+            titleInput.value = '';
+            urlInput.value = '';
+            coordsInput.value = '';
+            colorSelect.selectedIndex = 0; // 最初のオプションに戻す
+            
+            // 画像関係のリセット
+            imageInput.value = "";
+            uploadedImageData = "";
+            imagePreview.src = "";
+            imagePreviewContainer.style.display = 'none';
+
+            document.querySelector('input[name="period-type"][value="none"]').checked = true;
+            document.getElementById('period-date-inputs').style.display = 'none';
+            document.getElementById('start-date').value = '';
+            document.getElementById('end-date').value = '';
+            
+            if (tempMarker) {
+                map.removeLayer(tempMarker);
+                tempMarker = null;
+            }
+            selectedLatLng = null;
+            saveBtn.disabled = true;
+        }
+
+        // 削除処理
+        window.deleteSpot = function(id) {
+            if (!confirm('このピンを削除してもよろしいですか？')) {
+                return;
+            }
+
+            if (markerObjects[id]) {
+                map.removeLayer(markerObjects[id]);
+                delete markerObjects[id];
+            }
+
+            savedSpots = savedSpots.filter(spot => spot.id !== id);
+            saveToLocalStorage();
+
+            // もし削除したスポットを今ちょうど編集中の場合、編集モードを抜ける
+            if (editingSpotId === id) {
+                exitEditMode();
+            }
+
+            // 削除後、リストを再フィルタリング
+            filterSpots();
+        };
+
+        function saveToLocalStorage() {
+            localStorage.setItem('myMapSpots', JSON.stringify(savedSpots));
+        }
+
+        // 期限切れピンのチェックと自動削除
+        function checkAndCleanExpiredSpots() {
+            const today = new Date();
+            // YYYY-MM-DD フォーマットで今日の日付文字列を生成
+            const todayStr = today.getFullYear() + '-' + 
+                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(today.getDate()).padStart(2, '0');
+
+            const validSpots = [];
+            let expiredCount = 0;
+
+            savedSpots.forEach(spot => {
+                if (spot.periodType === 'specific' && spot.endDate) {
+                    // 終了日が今日より前の日付（過去）であれば自動削除
+                    if (spot.endDate < todayStr) {
+                        expiredCount++;
+                        // 地図上にマーカーが存在すれば削除
+                        if (markerObjects[spot.id]) {
+                            map.removeLayer(markerObjects[spot.id]);
+                            delete markerObjects[spot.id];
+                        }
+                    } else {
+                        validSpots.push(spot);
+                    }
+                } else {
+                    validSpots.push(spot);
+                }
+            });
+
+            if (expiredCount > 0) {
+                savedSpots = validSpots;
+                saveToLocalStorage();
+                showNotification(`期限が切れたスポット ${expiredCount} 件を自動的に整理・削除しました。`);
+            }
+        }
+
+        // トースト通知の表示
+        function showNotification(message) {
+            const toast = document.getElementById('notification-toast') || createNotificationToast();
+            toast.innerText = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.opacity = '1';
+            }, 50);
+
+            // 5秒後にフェードアウト
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 300);
+            }, 5000);
+        }
+
+        function createNotificationToast() {
+            const toast = document.createElement('div');
+            toast.id = 'notification-toast';
+            document.body.appendChild(toast);
+            return toast;
+        }
+
+        function loadSpots() {
+            const localData = localStorage.getItem('myMapSpots');
+            if (localData) {
+                savedSpots = JSON.parse(localData);
+                // 起動時に期限切れピンのチェック・自動削除を実行
+                checkAndCleanExpiredSpots();
+                savedSpots.forEach(spot => {
+                    createPermanentMarker(spot);
+                });
+            }
+            // 初期読み込み後、フィルターを実行して一覧を構築
+            filterSpots();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#x27;');
+        }
     </script>
 </body>
 </html>
